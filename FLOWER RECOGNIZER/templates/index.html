@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🌸 FLOWER RECOGNIZER</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>🌸 FLOWER RECOGNIZER</h1>
+
+    <button onclick="document.getElementById('fileInput').click()">Upload Image</button>
+    <button onclick="startCamera()">Use Webcam</button>
+    <br><br>
+
+    <video id="video" width="320" height="240" autoplay></video>
+    <button onclick="captureImage()">Capture</button>
+
+    <input type="file" id="fileInput" accept="image/*" style="display:none">
+    <canvas id="canvas" width="224" height="224" style="display:none;"></canvas>
+
+    <img id="preview" style="display:none; max-width:100%; border-radius:12px; margin-top:1rem;" />
+
+    <div class="result" id="result">Prediction</div>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById("fileInput");
+    const canvas = document.getElementById("canvas");
+    const video = document.getElementById("video");
+    const preview = document.getElementById("preview");
+    const result = document.getElementById("result");
+
+    function startCamera() {
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+          video.srcObject = stream;
+          video.style.display = "block";
+        })
+        .catch(err => alert("Camera access denied!"));
+    }
+
+    function captureImage() {
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataURL = canvas.toDataURL("image/jpeg");
+      preview.src = dataURL;
+      preview.style.display = "block";
+      sendImage(dataURL);
+    }
+
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files[0];
+      if (file && file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const dataURL = canvas.toDataURL("image/jpeg");
+            preview.src = dataURL;
+            preview.style.display = "block";
+            sendImage(dataURL);
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    function sendImage(base64Image) {
+      fetch("/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: base64Image })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) throw data.error;
+        result.innerText = `Prediction: ${data.class} (${data.confidence})`;
+      })
+      .catch(err => {
+        result.innerText = "Prediction failed.";
+        console.error(err);
+      });
+    }
+  </script>
+</body>
+</html>
